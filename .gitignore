@@ -14,11 +14,14 @@ venv/
 *.sqlite3
 *.tsbuildinfo
 
-# ==== Django ====
-*.log
+# ==== Django / artefactos ====
 media/
 staticfiles/
 db.sqlite3
+
+# ==== Logs de desarrollo (backend/frontend) ====
+.logs/
+*.log
 
 # ==== Node ====
 node_modules/

@@ -9,7 +9,7 @@ import uuid
 import jwt
 import pytest
 from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.asymmetric import ec, rsa
 
 SUPABASE_URL = "https://testref.supabase.co"
 ISSUER = f"{SUPABASE_URL}/auth/v1"
@@ -56,6 +56,51 @@ def supabase_rs256(settings, claves_rsa):
     modulo.limpiar_cache_jwks()
     modulo._cache._refrescar = lambda: modulo._cache.__dict__.update(  # noqa: SLF001
         _claves={"test-kid": jwt.PyJWK(jwk).key},
+        _expira_en=time.monotonic() + 3600,
+    )
+    yield privada_pem
+    modulo.limpiar_cache_jwks()
+
+
+def _par_de_claves_ec():
+    """Clave EC P-256 como la que emite Supabase (ES256)."""
+    privada = ec.generate_private_key(ec.SECP256R1())
+    privada_pem = privada.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    ).decode()
+    publicos = privada.public_key().public_numbers()
+    ancho = 32  # P-256 -> 32 bytes por coordenada
+    jwk = {
+        "kty": "EC",
+        "crv": "P-256",
+        "alg": "ES256",
+        "use": "sig",
+        "kid": "ec-kid",
+        "x": base64.urlsafe_b64encode(publicos.x.to_bytes(ancho, "big")).rstrip(b"=").decode(),
+        "y": base64.urlsafe_b64encode(publicos.y.to_bytes(ancho, "big")).rstrip(b"=").decode(),
+    }
+    return privada_pem, jwk
+
+
+@pytest.fixture(scope="session")
+def claves_ec():
+    return _par_de_claves_ec()
+
+
+@pytest.fixture
+def supabase_es256(settings, claves_ec):
+    """Configura settings para validar ES256 (formato actual de Supabase)."""
+    privada_pem, jwk = claves_ec
+    settings.SUPABASE_URL = SUPABASE_URL
+    settings.SUPABASE_JWT_SECRET = ""
+
+    from shared.auth import supabase as modulo
+
+    modulo.limpiar_cache_jwks()
+    modulo._cache._refrescar = lambda: modulo._cache.__dict__.update(  # noqa: SLF001
+        _claves={"ec-kid": jwt.PyJWK(jwk).key},
         _expira_en=time.monotonic() + 3600,
     )
     yield privada_pem

@@ -6,7 +6,7 @@ import uuid
 
 import pytest
 from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from modules.users_auth.models import Rol, Usuario
 from rest_framework.test import APIRequestFactory
 
@@ -59,6 +59,42 @@ class TestVerificacionRS256:
         settings.SUPABASE_JWT_SECRET = ""
         with pytest.raises(supabase.ConfiguracionAusente):
             supabase.verificar_token(construir_token(clave=claves_rsa[0]))
+
+
+class TestVerificacionES256:
+    """Supabase emite ES256 por defecto en los proyectos nuevos (regresión real)."""
+
+    def test_token_valido_es256(self, supabase_es256):
+        token = construir_token(
+            alg="ES256", clave=supabase_es256, kid="ec-kid", correo="ec@canchaya.test"
+        )
+        claims = supabase.verificar_token(token)
+        assert claims.correo == "ec@canchaya.test"
+
+    def test_token_expirado_es256(self, supabase_es256):
+        token = token_expirado(alg="ES256", clave=supabase_es256, kid="ec-kid")
+        with pytest.raises(supabase.TokenExpirado):
+            supabase.verificar_token(token)
+
+    def test_firma_es256_con_otra_clave(self, supabase_es256):
+        otra = ec.generate_private_key(ec.SECP256R1())
+        otra_pem = otra.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        ).decode()
+        with pytest.raises(supabase.TokenInvalido):
+            supabase.verificar_token(construir_token(alg="ES256", clave=otra_pem, kid="ec-kid"))
+
+    def test_kid_desconocido_es256(self, supabase_es256):
+        token = construir_token(alg="ES256", clave=supabase_es256, kid="otro-kid")
+        with pytest.raises(supabase.TokenInvalido):
+            supabase.verificar_token(token)
+
+    def test_audiencia_incorrecta_es256(self, supabase_es256):
+        token = construir_token(alg="ES256", clave=supabase_es256, kid="ec-kid", audiencia="otra")
+        with pytest.raises(supabase.TokenInvalido):
+            supabase.verificar_token(token)
 
 
 class TestVerificacionHS256:

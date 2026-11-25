@@ -1,7 +1,34 @@
 # Verificación — Iteración 6 (Endurecimiento y entrega)
 
-## 1. Rate limiting (T6.1)
+## 0. Corrección post-entrega: algoritmos JWT de Supabase
 
+**Síntoma:** login real contra el proyecto Supabase → `POST /api/v1/auth/sync/` **401** con
+`Algoritmo de firma no soportado`.
+
+**Causa:** el proyecto firma con **ES256** (clave EC en el JWKS), pero el validador
+solo aceptaba `RS256` y `HS256`.
+
+**Solución** (`shared/auth/supabase.py`):
+
+```python
+ALGORITMOS_ASIMETRICOS = {"ES256", "ES384", "ES512", "RS256", "RS384", "RS512"}
+...
+elif alg in ALGORITMOS_ASIMETRICOS:
+    clave = _cache.obtener(kid)              # EC o RSA según el JWKS
+    payload = _decodificar(token, clave, [alg])   # se verifica con el alg real
+```
+
+- Se verifica con el **`alg` del encabezado**, no con uno fijo.
+- Soporta rotación EC ↔ RSA sin cambios de configuración.
+- Tests nuevos (5) en `shared/tests/test_auth_jwt.py`: ES256 válido, expirado,
+  firma con otra clave, `kid` desconocido y `aud` incorrecta.
+- Script de diagnóstico: `scripts/check_jwks.py` (muestra `kty`/`alg` del JWKS).
+
+**Verificación:** suite completa **243 passed** (238 + 5).
+
+---
+
+## 1. Rate limiting (T6.1)
 `REST_FRAMEWORK` en `config/settings/base.py`:
 
 ```python

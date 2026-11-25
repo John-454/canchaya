@@ -1,11 +1,14 @@
 """Validación de tokens JWT emitidos por Supabase Auth (T2.1).
 
-Soporte dual:
-- **RS256 (preferido)**: descarga el JWKS de `{SUPABASE_URL}/auth/v1/.well-known/jwks.json`,
-  lo cachea con TTL y selecciona la clave por `kid`.
-- **HS256 (legacy)**: usa `SUPABASE_JWT_SECRET`.
+Soporte de algoritmos:
+- **ES256 / ES384 / ES512** (lo que emiten los proyectos nuevos de Supabase,
+  claves EC en el JWKS) → verificación por clave pública del JWKS.
+- **RS256** (proyectos con claves RSA) → idem.
+- **HS256 (legacy)** → `SUPABASE_JWT_SECRET`.
 
-Se valida `exp`, `aud` (`authenticated`) e `iss` (`{SUPABASE_URL}/auth/v1`).
+El JWKS se descarga de `{SUPABASE_URL}/auth/v1/.well-known/jwks.json`, se cachea
+con TTL y se selecciona la clave por `kid`. Se valida `exp`, `aud`
+(`authenticated`) e `iss` (`{SUPABASE_URL}/auth/v1`).
 """
 
 from __future__ import annotations
@@ -18,7 +21,8 @@ import jwt
 import requests
 from django.conf import settings
 
-ALGORITMO_ASIMETRICO = "RS256"
+# Algoritmos asimétricos soportados (se resuelven con el JWKS).
+ALGORITMOS_ASIMETRICOS = {"ES256", "ES384", "ES512", "RS256", "RS384", "RS512"}
 ALGORITMO_SIMETRICO = "HS256"
 AUDIENCIA = "authenticated"
 
@@ -169,9 +173,10 @@ def _claims(payload: dict) -> ClaimsToken:
 def verificar_token(token: str) -> ClaimsToken:
     """Valida el token y devuelve los claims normalizados.
 
-    Estrategia: si hay `SUPABASE_JWT_SECRET`, se intenta HS256 (proyectos
-    legacy). Si hay `SUPABASE_URL`, se usa RS256 con JWKS (proyectos nuevos).
-    Si el header del token ya indica el algoritmo, se respeta.
+    Estrategia: se respeta el `alg` del encabezado.
+    - `HS256` → `SUPABASE_JWT_SECRET` (proyectos legacy).
+    - `ES256/384/512`, `RS256/384/512` → clave pública del JWKS de `SUPABASE_URL`.
+    Supabase puede rotar entre familias sin cambiar la app.
     """
     if not token:
         raise TokenInvalido("Falta el token de autenticación.")
@@ -186,7 +191,7 @@ def verificar_token(token: str) -> ClaimsToken:
         if not settings.SUPABASE_JWT_SECRET:
             raise ConfiguracionAusente("El proyecto no tiene configurado SUPABASE_JWT_SECRET.")
         payload = _decodificar(token, settings.SUPABASE_JWT_SECRET, [ALGORITMO_SIMETRICO])
-    elif alg == ALGORITMO_ASIMETRICO:
+    elif alg in ALGORITMOS_ASIMETRICOS:
         if not settings.SUPABASE_URL:
             raise ConfiguracionAusente("El proyecto no tiene configurado SUPABASE_URL.")
         kid = header.get("kid")
@@ -195,8 +200,10 @@ def verificar_token(token: str) -> ClaimsToken:
             # Rotación de claves: se refresca una vez, con ventana anti-martilleo.
             clave = _cache.refrescar_si_kid_desconocido(kid)
         if clave is None:
-            raise TokenInvalido("No se encontró la clave pública del token (kid).")
-        payload = _decodificar(token, clave, [ALGORITMO_ASIMETRICO])
+            raise TokenInvalido(
+                f"No se encontró la clave pública del token (alg={alg}, kid={kid})."
+            )
+        payload = _decodificar(token, clave, [alg])
     else:
         raise TokenInvalido(f"Algoritmo de firma no soportado: {alg or 'desconocido'}.")
 

@@ -15,8 +15,10 @@ from decouple import config
 # Reexporta las fixtures de datos para que pytest las descubra.
 from shared.tests.fixtures import *  # noqa: E402,F403
 from shared.tests.tokens import (  # noqa: E402,F401
+    claves_ec,
     claves_rsa,
     construir_token,
+    supabase_es256,
     supabase_hs256,
     supabase_rs256,
     token_expirado,
