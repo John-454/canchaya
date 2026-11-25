@@ -1,0 +1,35 @@
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["backend"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "DJ"]
+# DJ001: se permiten CharField nullable a propósito —
+#   * usuarios.telefono  -> decisión R1 (Google Sign-In no lo entrega)
+#   * canchas.zona       -> campo opcional de filtro local según la spec
+ignore = ["E501", "DJ001"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/migrations/*.py" = ["E501", "F401"]
+"**/tests/*.py" = ["S101"]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+extend-exclude = 'migrations'
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+python_files = ["test_*.py"]
+testpaths = ["modules", "shared"]
+addopts = "-q --strict-markers"
+pythonpath = ["."]
+
+[tool.coverage.run]
+source = ["modules", "shared"]
+omit = ["*/migrations/*", "*/tests/*", "*/__init__.py"]
+
+[tool.coverage.report]
+fail_under = 0
+skip_covered = true

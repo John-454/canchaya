@@ -1,0 +1,14 @@
+# Normaliza finales de línea en el repo (LF) y evita que Windows los cambie.
+* text=auto eol=lf
+
+# Scripts de shell dentro de contenedores deben conservar LF.
+*.sh text eol=lf
+Dockerfile text eol=lf
+
+# Binarios
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff2 binary

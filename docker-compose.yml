@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: canchaya_db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-canchaya}
+      POSTGRES_USER: ${POSTGRES_USER:-canchaya}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-canchaya}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - canchaya_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-canchaya} -d ${POSTGRES_DB:-canchaya}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  canchaya_pgdata:

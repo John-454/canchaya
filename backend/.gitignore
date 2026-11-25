@@ -1,0 +1,25 @@
+# ==== Python / Django ====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+*.log
+media/
+staticfiles/
+
+# ==== Env / secretos ====
+.env
+.env.*
+!.env.example
+
+# ==== Contenedores / artefactos ====
+*.sqlite3
+db.sqlite3
